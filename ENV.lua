@@ -1,8 +1,5 @@
 --:: 90% of this was coded while sleep deprived
 
-
-
-
 --:: Variables
 local Library = {
 	Settings = {
@@ -124,6 +121,14 @@ local Library = {
 	Shown  = true;
 	Count  = 0;
 	Flags  = {};
+
+	Icons  = {
+		Combat   = "rbxassetid://10401329089";
+		Movement = "rbxassetid://10403468113";
+		Visuals  = "rbxassetid://10403490626";
+		Settings = "rbxassetid://10403508076";
+		Others   = "rbxassetid://10403543022";
+	};
 }
 
 
@@ -874,3 +879,5 @@ function Library:NewTab(Properties)
 end
 
 return Library
+
+
