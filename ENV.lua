@@ -13,7 +13,7 @@ local Library = {
 		}
 	};
 	WebData = {
-		Objects = game:GetObjects("rbxassetid://10400859799")[1];
+		Objects = game:GetObjects("https://assetdelivery.roblox.com/v1/asset/?id=10400859799")[1];
 	};
 	AnimationSettings = {
 		["ButtonObject"] = {
