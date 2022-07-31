@@ -4,20 +4,26 @@
 
 local FolderName     = "Aristois"
 local SettingsName   = (FolderName .. "/%s.json"):format( tostring(game.GameId) )
-local Client         = game:GetService("HttpService"):JSONDecode( readfile(SettingsName) )
+local Client         = isfile(SettingsName) and game:GetService("HttpService"):JSONDecode( readfile(SettingsName) ) or { Config = {} }
 
 function __makefolder(name)
     if isfolder(name) then return true end 
     makefolder(name)
+    task.wait(0.1)
+    return true
 end
 
 function __updatesettings(Client)
-    writefile(SettingsName, game:GetService("HttpService"):JSONEncode({ ["Config"] = Client.Config; }))    
+    if __makefolder(FolderName) then
+        writefile(SettingsName, game:GetService("HttpService"):JSONEncode({ ["Config"] = Client.Config; }))    
+    end
 end
 
 function GetSave(Name)
     return Client["Config"][Name]
 end
+
+
 
 
 local Library = {
@@ -798,7 +804,7 @@ function Functions:AddButton(Properties)
     if Properties.Toggleable then
         Properties.Flag = Properties.Flag or FlagGeneration:GenFlag(Properties.Flag)
 
-        Properties.Default = GetSave(Properties.Flag)
+        Properties.Default = GetSave(Properties.Flag) or Properties.Default
 
         local OldCallback   = Properties.Callback 
         Properties.Callback = function(value, ...)
@@ -866,12 +872,14 @@ end
 function Functions:AddToggle(Properties)
     Properties.Flag = Properties.Flag or FlagGeneration:GenFlag(Properties.Flag)
 
-    Properties.Default = GetSave(Properties.Flag)
+    Properties.Default = GetSave(Properties.Flag) or Properties.Default
 
     local OldCallback   = Properties.Callback 
     Properties.Callback = function(value, ...)
-        Client[Properties.Flag] = value
+        Client[Properties.Flag] = value or false
+        
         __updatesettings(Client)
+
         return OldCallback(value, ...)
     end
 
@@ -889,7 +897,7 @@ end
 function Functions:AddSlider(Properties)
     Properties.Flag = Properties.Flag or FlagGeneration:GenFlag(Properties.Flag)
 
-    Properties.Default = GetSave(Properties.Flag)
+    Properties.Default = GetSave(Properties.Flag) or Properties.Default
 
     local OldCallback   = Properties.Callback 
     Properties.Callback = function(value, ...)
