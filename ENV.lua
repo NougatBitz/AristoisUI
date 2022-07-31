@@ -12,9 +12,11 @@ local Library = {
 			MaxSize = Vector2.new(200, 400);
 		}
 	};
-	WebData = {
+
+	UI = {
 		Objects = game:GetObjects("https://assetdelivery.roblox.com/v1/asset/?id=10400859799")[1];
 	};
+
 	AnimationSettings = {
 		["ButtonObject"] = {
 			MouseEnter = {
@@ -112,15 +114,6 @@ local Library = {
 			};
 		};
 	};
-	Sizing = {
-		Dragging        = false;
-		StartPosition   = nil;
-		StartSize       = nil;
-		Input           = nil;
-	};
-	Shown  = true;
-	Count  = 0;
-	Flags  = {};
 
 	Icons  = {
 		Combat   = "rbxassetid://10401329089";
@@ -129,13 +122,32 @@ local Library = {
 		Settings = "rbxassetid://10403508076";
 		Others   = "rbxassetid://10403543022";
 	};
+	Flags  = {};
+
+	Shown  = true;
+	Count  = 0;
+
+	--:: this is unused (might re-add being able to resize tabs)
+	Sizing = { 
+		Dragging        = false;
+		StartPosition   = nil;
+		StartSize       = nil;
+		Input           = nil;
+	};
 }
 
+local Game				= game
+local GetService 		= Game.GetService
+local GetChangedSignal 	= Game.GetPropertyChangedSignal
+local FindFirstChild	= Game.FindFirstChild
+local IsDescendantOf	= Game.IsDescendantOf
 
+local Connect, Disconnect do 
+	local RBXScriptSignal 		= Game.Loaded; Connect = RBXScriptSignal.Connect
+	local RBXScriptConnection 	= Connect(RBXScriptSignal, function() end); Disconnect = RBXScriptConnection.Disconnect
 
-local Game				= game;
-local GetService 		= Game.GetService;
-local GetChangedSignal 	= Game.GetPropertyChangedSignal;
+	Disconnect(RBXScriptConnection)
+end
 
 local TweenService  	= GetService(Game, "TweenService")
 local UserInputService 	= GetService(Game, "UserInputService")
@@ -161,7 +173,7 @@ local ConnectionManager = {Connections = {}; Paused = {}; } do
 		for i,v in next, self.Connections do
 			index_count = index_count + 1
 
-			v.Connection:Disconnect()
+			Disconnect(v.Connection)
 
 			table.remove(self.Connections, index_count)
 		end
@@ -214,49 +226,45 @@ local ConnectionManager = {Connections = {}; Paused = {}; } do
 	end
 end
 
-local Dragger = {}; do
-	local heartbeat    = RunService.Heartbeat
-	local Mouse        = Players.LocalPlayer:GetMouse()
-
-	function Dragger.new(frame)
-		local s, event = pcall(function()
-			return frame.MouseEnter
-		end)
-
-		if s then
-			frame.Active = true;
-
-			event:connect(function()
-				local input = frame.InputBegan:connect(function(key)
-					if key.UserInputType == Enum.UserInputType.MouseButton1 then
-						local objectPosition = Vector2.new(Mouse.X - frame.AbsolutePosition.X, Mouse.Y - frame.AbsolutePosition.Y);
-						while heartbeat:wait() and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) do
-							pcall(function()
-								frame:TweenPosition(UDim2.new(0, Mouse.X - objectPosition.X, 0, Mouse.Y - objectPosition.Y), 'Out', 'Linear', 0.1, true);
-							end)
-						end
-					end
-				end)
-
-				local leave;
-				leave = frame.MouseLeave:connect(function()
-					input:disconnect();
-					leave:disconnect();
-				end)
-			end)
-		end
-	end
-end
-
 
 --:: Local Functions
-
 local function GetMouseLocation()
 	return (UserInputService.GetMouseLocation(UserInputService) - GuiInset)
 end
 
-local function IsMouseButton1Pressed()
-	return UserInputService.IsMouseButtonPressed(UserInputService, Enum.UserInputType.MouseButton1)
+local function IsMouseButtonDown(Button)
+	return UserInputService.IsMouseButtonPressed(UserInputService, Enum.UserInputType[Button])
+end
+
+
+local function AddDragger(Object)
+	local Success, _ = pcall(function()
+		return Object.MouseEnter
+	end)
+
+	if Success then
+		ConnectionManager:Add(Object, "MouseEnter", function()
+			local InputBeganConn = Connect(Object.InputBegan, function(Input)
+				if Input.UserInputType == Enum.UserInputType.MouseButton1 then
+					local StartPosition = Vector2.new(Input.Position.X, Input.Position.Y) - Object.AbsolutePosition
+ 
+					while IsMouseButtonDown("MouseButton1") do
+						local NewPosition = GetMouseLocation() - StartPosition
+
+						Object:TweenPosition(UDim2.new(0, NewPosition.X, 0, NewPosition.Y), "Out", "Linear", 0.01, true)
+
+						task.wait()
+					end
+				end
+			end)
+
+			local MouseLeaveConn
+			MouseLeaveConn = Connect(Object.MouseLeave, function()
+				Disconnect(InputBeganConn)
+				Disconnect(MouseLeaveConn)
+			end)
+		end)
+	end
 end
 
 local function CreateTween(Object, Event, Setting, CustomClass)
@@ -268,18 +276,25 @@ end
 local function UpdateSlider(SliderFrame, Position, Properties)
 	local SliderLimit  	= SliderFrame.SliderLimit
 	local SliderObject 	= SliderLimit.SliderObject
-	local SliderText 	= SliderFrame:FindFirstChild("Text")
+	local SliderText 	= FindFirstChild(SliderFrame, "Text")
+
+	if Position == "Init" then
+		local NewSize = SliderLimit.AbsoluteSize.X / (Properties.Min + (Properties.Max - Properties.Min)) * Properties.Default --// this sucks and imk too lazy to fix
+
+		SliderText.Text = string.format("%s <i>%s</i>", Properties.Title, Properties.Default)
+
+		Library.Flags[Properties.Flag] = Properties.Default
+	
+		pcall(Properties.Callback, Properties.Default)
+
+		SliderObject.Size 	= UDim2.new(SliderObject.Size.X.Scale, NewSize, SliderObject.Size.Y.Scale, SliderObject.Size.Y.Offset)
+		return
+	end
 
 	local MaxSizeX 		= SliderLimit.AbsoluteSize.X
-
 	local DeltaX 		= Position.X - SliderLimit.AbsolutePosition.X
 
-	SliderObject.Size 	= UDim2.new(
-		SliderObject.Size.X.Scale,
-		math.clamp(DeltaX, 0, MaxSizeX),
-		SliderObject.Size.Y.Scale,
-		SliderObject.Size.Y.Offset
-	)
+	SliderObject.Size 	= UDim2.new(SliderObject.Size.X.Scale, math.clamp(DeltaX, 0, MaxSizeX), SliderObject.Size.Y.Scale, SliderObject.Size.Y.Offset)
 
 	local Value 		= math.floor( Properties.Min + ( ( ( Properties.Max - Properties.Min ) / MaxSizeX ) * SliderObject.AbsoluteSize.X ) )
 	SliderText.Text 	= string.format("%s <i>%s</i>", Properties.Title, Value)
@@ -302,10 +317,10 @@ local function IsHoveringObject(Object)
 	return false
 end
 
-local function ToggleConfigWindow(Visible, UIFunctions, Window)
+local function ToggleConfigWindow(Visible, __self, Window)
 	if Visible then
-		ConnectionManager:Stop(function(object)
-			if (object == nil) or (object == UserInputService) or (object:IsDescendantOf(Window)) then return false end
+		ConnectionManager:Stop(function(Object)
+			if (Object == nil) or (Object == UserInputService) or (IsDescendantOf(Object, Window)) then return false end
 
 			return true
 		end)
@@ -315,8 +330,8 @@ local function ToggleConfigWindow(Visible, UIFunctions, Window)
 
 	local Mouse = GetMouseLocation()
 
-	local NewSize = Visible and UIFunctions:Resize() or Library.Settings.ConfigWindow.MinSize do
-		NewSize = Vector2.new(NewSize.X, math.clamp(NewSize.Y,  Library.Settings.ConfigWindow.MinSize.Y,  Library.Settings.ConfigWindow.MaxSize.Y) )
+	local NewSize = Visible and __self:Resize() or Library.Settings.ConfigWindow.MinSize do
+		NewSize = Vector2.new(NewSize.X, math.clamp(NewSize.Y, Library.Settings.ConfigWindow.MinSize.Y, Library.Settings.ConfigWindow.MaxSize.Y) )
 
 		NewSize = UDim2.new(0, NewSize.X, 0, NewSize.Y)
 	end
@@ -350,7 +365,7 @@ Functions.__index = Functions
 function Functions.Internal:AddToolTip(Object, Text)
 	local MouseOnObject = true
 
-	local ToolTip  = Functions.StoredToolTips[Object] or Library.WebData.Objects.ToolTip:Clone()
+	local ToolTip  = Functions.StoredToolTips[Object] or Library.UI.Objects.ToolTip:Clone()
 	ToolTip.Parent = ScreenGUIs.Popouts
 	Functions.StoredToolTips[Object] = ToolTip
 
@@ -389,7 +404,7 @@ end
 
 function Functions.Internal:InitConfigPage(Object, Properties, Callback)
 	if (not Functions.ConfigPages[Object]) then
-		local ClonedWindow  = Library.WebData.Objects.ConfigWindow:Clone() 
+		local ClonedWindow  = Library.UI.Objects.ConfigWindow:Clone() 
 		ClonedWindow.Parent = ScreenGUIs.Popouts
 		Functions.ConfigPages[Object] = ClonedWindow
 
@@ -398,7 +413,7 @@ function Functions.Internal:InitConfigPage(Object, Properties, Callback)
 
 	local ConfigWindow 	= Functions.ConfigPages[Object]
     ConfigWindow.Size   = UDim2.new(0,200,0,0)
-	local UIFunctions   = Functions:InitItemHolder({ Parent = ConfigWindow.ScrollingFrame })
+	local __self   		= Functions:InitItemHolder({ Parent = ConfigWindow.ScrollingFrame })
 
 	ConnectionManager:Add(Object, "MouseButton2Click", function()
 		local Visible = not (Functions.ConfigWindow ~= nil)
@@ -409,7 +424,7 @@ function Functions.Internal:InitConfigPage(Object, Properties, Callback)
 		end
 
 		Functions.ConfigWindow = ConfigWindow
-		ToggleConfigWindow(Visible, UIFunctions, ConfigWindow)
+		ToggleConfigWindow(Visible, __self, ConfigWindow)
 
 		task.spawn(Callback)
 	end)
@@ -417,7 +432,7 @@ function Functions.Internal:InitConfigPage(Object, Properties, Callback)
 
 	local UI_Elements = {} do
 		for i, v in next, Properties do
-			UI_Elements[i] = UIFunctions[v.Type](UIFunctions, v.Args)
+			UI_Elements[i] = __self[v.Type](__self, v.Args)
 		end
 	end
 
@@ -456,11 +471,12 @@ function Functions.Internal:InitButton(ButtonObject, Properties)
 	local Title			= Properties.Title 		or "No title set."
 	local Callback		= Properties.Callback 	or (function(...) print("No callback set.", ...) end)
 
-	local Flag		= Properties.Flag 	or tostring(math.random())
+	local Flag			= Properties.Flag 	or tostring(math.random())
+	Properties.Flag		= Flag
 
 	local Toggled       = Default
 
-	local TextObject 	= ButtonObject:FindFirstChild("Text")
+	local TextObject 	= FindFirstChild(ButtonObject, "Text")
 	local DropShadow 	= TextObject.DropShadow
 
 	--:: Sync Connection
@@ -514,15 +530,17 @@ function Functions.Internal:InitButton(ButtonObject, Properties)
 end
 
 function Functions.Internal:InitSlider(SliderObject, Properties)
-	local Min			= Properties.Min 		or 0
-	local Max			= Properties.Max 		or 10
+	Properties.Min		= Properties.Min 		or 0
+	Properties.Max 		= Properties.Max		or 10
+	Properties.Default	= Properties.Default    or Properties.Max / 2
 
 	local Title			= Properties.Title 		or "No title set."
 	local Callback		= Properties.Callback 	or (function(...) print("No callback set.", ...) end)
 
 	local Flag		= Properties.Flag 	or tostring(math.random())
+	Properties.Flag = Flag
 
-	local TextObject 	= SliderObject:FindFirstChild("Text")
+	local TextObject 	= FindFirstChild(SliderObject, "Text")
 	local DropShadow 	= TextObject.DropShadow
 
 	--:: Sync Connection
@@ -568,7 +586,7 @@ function Functions.Internal:InitSlider(SliderObject, Properties)
 
 	--:: End Init
 
-	UpdateSlider(SliderObject, Vector2.new(0, 0), Properties)
+	UpdateSlider(SliderObject, "Init", Properties)
 
 	return SliderObject
 end
@@ -579,14 +597,15 @@ function Functions.Internal:InitToggle(ToggleObject, Properties)
 	local Callback			= Properties.Callback 	or (function(...) print("No callback set.", ...) end)
 	local CallbackOnStart	= Properties.CallbackOnStart or false
 
-	local Flag			= Properties.Flag 	or tostring(math.random())
+	local Flag				= Properties.Flag 	or tostring(math.random())
+	Properties.Flag 		= Flag
 
 	local Value				= Default or false
 
 	local ToggleIndicator 	= ToggleObject.ToggleIndicator
 	local ToggleBall 		= ToggleIndicator.ToggleBall
 
-	local TextObject 		= ToggleObject:FindFirstChild("Text")
+	local TextObject 		= FindFirstChild(ToggleObject, "Text")
 	local DropShadow 		= TextObject.DropShadow
 
 	--:: Sync Connection
@@ -705,11 +724,22 @@ end]]
 
 function Functions:Resize()
 	local ScrollingFrame = self.Parent
+
 	local MainFrame      = ScrollingFrame.Parent
 
 	local CanvasSizeY = self.Count * 40
 	ScrollingFrame.CanvasSize = UDim2.new(ScrollingFrame.CanvasSize.X.Scale, ScrollingFrame.CanvasSize.X.Offset, 0, CanvasSizeY)
-	MainFrame.Size            = UDim2.new(MainFrame.Size.X.Scale, MainFrame.Size.X.Offset, 0,  math.clamp(CanvasSizeY, 0, Library.Settings.Tab.MaxSize.Y) )
+	table.foreach(self, warn)
+	MainFrame:TweenSize(
+		(
+			self.Visible and UDim2.new(MainFrame.Size.X.Scale, MainFrame.Size.X.Offset, 0, math.clamp(CanvasSizeY, 0, Library.Settings.Tab.MaxSize.Y) ) or UDim2.new(MainFrame.Size.X.Scale, MainFrame.Size.X.Offset, 0,  0)
+		), 
+		self.Visible and "Out" or "In", 
+		"Linear", 
+		0.15, 
+		true
+	)
+	
 	return ScrollingFrame.AbsoluteCanvasSize
 end
 
@@ -728,8 +758,8 @@ function Functions:InitItemHolder(Properties)
 	}, Functions)
 end
 
-function Functions:AddButton(Properties, IsConfigPage)
-	local NewButton = Library.WebData.Objects.Button:Clone() do
+function Functions:AddButton(Properties)
+	local NewButton = Library.UI.Objects.Button:Clone() do
 		NewButton.Parent 	  = self.Parent
 		NewButton.LayoutOrder = self:GetOrder() 
 	end
@@ -746,15 +776,44 @@ function Functions:AddButton(Properties, IsConfigPage)
 			end)
 		end;
         ChangeText = function(_, text)
-            local Label = NewButton:FindFirstChild("Text")
+            local Label = FindFirstChild(NewButton, "Text")
             Label.Text              = text
             Label.DropShadow.Text   = text
         end;
 	}
 end
 
+function Functions:AddLabel(Properties)
+	local NewButton = Library.UI.Objects.Button:Clone() do
+		NewButton.Parent 	  = self.Parent
+		NewButton.LayoutOrder = self:GetOrder() 
+        NewButton.Active      = false
+	end
+
+    local Label = FindFirstChild(NewButton, "Text")
+    Label.RichText              = true
+    Label.DropShadow.RichText   = true
+
+    Label.Text              = Properties.Text or Properties.Title or "None"
+    Label.DropShadow.Text   = Label.Text
+
+	self.Count = self.Count + 1
+	self:Resize()
+
+	return {
+        ChangeText = function(_, text)
+            Label.Text              = text
+            Label.DropShadow.Text   = text
+        end;
+        ChangeColor = function(_, color)
+            Label.TextColor3              = color
+            Label.DropShadow.TextColor3   = color
+        end;
+	}
+end
+
 function Functions:AddToggle(Properties)
-	local NewToggle = Library.WebData.Objects.Toggle:Clone() do
+	local NewToggle = Library.UI.Objects.Toggle:Clone() do
 		NewToggle.Parent 	  = self.Parent
 		NewToggle.LayoutOrder = self:GetOrder() 
 	end
@@ -766,7 +825,7 @@ function Functions:AddToggle(Properties)
 end
 
 function Functions:AddSlider(Properties)
-	local NewSlider = Library.WebData.Objects.Slider:Clone() do
+	local NewSlider = Library.UI.Objects.Slider:Clone() do
 		NewSlider.Parent 	  = self.Parent
 		NewSlider.LayoutOrder = self:GetOrder() 
 	end
@@ -778,13 +837,12 @@ function Functions:AddSlider(Properties)
 end
 
 function Functions:AddTextBox(Properties)
-	local NewTextBox = Library.WebData.Objects.Box:Clone() do
+	local NewTextBox = Library.UI.Objects.Box:Clone() do
 		NewTextBox.Parent 	   = self.Parent
 		NewTextBox.LayoutOrder = self:GetOrder() 
 	end
 	self.Count = self.Count + 1
 	self:Resize()
-
 
 	return self.Internal:InitTextBox(NewTextBox, Properties)
 end
@@ -832,50 +890,61 @@ ConnectionManager:Add(UserInputService, "InputBegan", function(Input)
 	if Input.UserInputType == Enum.UserInputType.Keyboard then
 		if Input.KeyCode == Enum.KeyCode.RightShift then
 			Library.Shown = not Library.Shown
-			ScreenGUIs.Tabs.Enabled = Library.Shown
+
+			for i,v in next, ScreenGUIs do 
+				v.Enabled = Library.Shown
+			end
 		end
 	end
 end)
 
 
-local LastTab = nil
 function Library:NewTab(Properties)
-	local TitleStr  = Properties.Title or "none"
-	local IconStr   = Properties.Icon  or ""
+	local TabTitle  = Properties.Title or "None"
+	local TabIcon   = Properties.Icon  or ""
 
-	self.Count = self.Count + 1
+	self.Count   = self.Count + 1
+	self.Visible = true
 
-	local NewTab = Library.WebData.Objects.Tab:Clone() do
-		if not LastTab then
-			LastTab = NewTab
-			NewTab.Position = UDim2.new(0, 25, 0, 25)
-		else
-			NewTab.Position = UDim2.new(0, LastTab.Position.X.Offset + NewTab.AbsoluteSize.X + 25, 0, 25 )
-			LastTab = NewTab
-		end
+	local NewTab, MainFrame = Library.UI.Objects.Tab:Clone() do
+		NewTab.Parent 		= ScreenGUIs.Tabs
 
-		NewTab.LayoutOrder  = self.Count
+		MainFrame			= NewTab.Underline.MainFrame
+		MainFrame.ClipsDescendants = true
+
+		NewTab.Position 	= (not self.LastTab) and UDim2.new(0, 25, 0, 25) or UDim2.new(0, self.LastTab.Position.X.Offset + NewTab.AbsoluteSize.X + 25, 0, 25 )
+		self.LastTab		= NewTab
 	end
-	Dragger.new(NewTab)
 
-	NewTab.Parent = ScreenGUIs.Tabs
+	local __selfFuncs = Functions:InitItemHolder({ 
+		Parent = MainFrame.ScrollingFrame;
+	})
 
-	local Title      = NewTab.Title
-	local DropShadow = Title.DropShadow
+	__selfFuncs.Visible = true
+	local ToggleButton = Instance.new("TextButton", NewTab.Title.Icon) do
+		ToggleButton.Size 					= UDim2.new(1, 0, 1, 0)
+		ToggleButton.Position 				= UDim2.new(1, 0, 1, 0)
+		ToggleButton.AnchorPoint 			= Vector2.new(1, 1)
+		ToggleButton.BackgroundTransparency = 1
+		ToggleButton.Text					= ""
+		ToggleButton.ZIndex					= 200
 
-	Title.Text       = TitleStr
-	DropShadow.Text  = TitleStr
+		ConnectionManager:Add(ToggleButton, "MouseButton1Click", function()
+			__selfFuncs.Visible = not __selfFuncs.Visible
+			__selfFuncs:Resize()
+		end)
+	end
 
-	local Icon       = Title.Icon
-	Icon.Image       = IconStr
+	local TitleObject = NewTab.Title do
+		TitleObject.Text 			= TabTitle
+		TitleObject.DropShadow.Text = TabTitle
 
-	local MainFrame  = NewTab.Underline.MainFrame
-	local InitializedFunctions = Functions:InitItemHolder({ Parent = MainFrame.ScrollingFrame })
+		TitleObject.Icon.Image 		= TabIcon
+	end
+	
+	AddDragger(NewTab)
 
-	Functions.Internal:InitScrollBar(MainFrame.ScrollBar, MainFrame.ScrollingFrame, 8)
-	--InitializedFunctions:InitResizer(MainFrame.SizeDrag)
-
-	return InitializedFunctions
+	return __selfFuncs
 end
 
 return Library
