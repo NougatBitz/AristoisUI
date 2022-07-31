@@ -2,9 +2,11 @@
 
 --:: Variables
 
+local SaveConfig     = ({...})[1].SaveConfig
+
 local FolderName     = "Aristois"
 local SettingsName   = (FolderName .. "/%s.json"):format( tostring(game.GameId) )
-local Client         = isfile(SettingsName) and game:GetService("HttpService"):JSONDecode( readfile(SettingsName) ) or { Config = {} }
+local Client         = (not SaveConfig and { Config = {} }) or (isfile(SettingsName) and game:GetService("HttpService"):JSONDecode( readfile(SettingsName) ) or { Config = {} })
 
 function __makefolder(name)
     if isfolder(name) then return true end 
@@ -14,6 +16,7 @@ function __makefolder(name)
 end
 
 function __updatesettings(Client)
+    if not SaveConfig then return end
     if __makefolder(FolderName) then
         writefile(SettingsName, game:GetService("HttpService"):JSONEncode({ ["Config"] = Client.Config; }))    
     end
@@ -629,7 +632,7 @@ function Functions.Internal:InitSlider(SliderObject, Properties)
 	end)
 
 	--:: End Init
-
+    
 	UpdateSlider(SliderObject, "Init", Properties)
 
 	return SliderObject
@@ -639,7 +642,6 @@ function Functions.Internal:InitToggle(ToggleObject, Properties)
 	local Default			= Properties.Default 	or false
 	local Title				= Properties.Title 		or "No title set."
 	local Callback			= Properties.Callback 	or (function(...) print("No callback set.", ...) end)
-	local CallbackOnStart	= Properties.CallbackOnStart or false
 
 	local Flag				= Properties.Flag 	or tostring(math.random())
 	Properties.Flag 		= Flag
@@ -678,10 +680,8 @@ function Functions.Internal:InitToggle(ToggleObject, Properties)
 	end)
 
 	--:: Init End
-	if CallbackOnStart then
-		Library.Flags[Flag] = Value
-		pcall(Callback, Value)
-	end
+	Library.Flags[Flag] = Value
+	pcall(Callback, Value)
 
 	CreateTween(ToggleBall, "MouseButton1Click", "Ball-" .. tostring(Value), "ToggleObject"):Play()
 	CreateTween(ToggleIndicator, "MouseButton1Click", "Indicator-" .. tostring(Value),  "ToggleObject"):Play()
@@ -810,8 +810,10 @@ function Functions:AddButton(Properties)
 
         local OldCallback   = Properties.Callback 
         Properties.Callback = function(value, ...)
-            Client[Properties.Flag] = value
+            Client.Config[Properties.Flag] = value
+
             __updatesettings(Client)
+
             return OldCallback(value, ...)
         end
     end
@@ -878,7 +880,7 @@ function Functions:AddToggle(Properties)
 
     local OldCallback   = Properties.Callback 
     Properties.Callback = function(value, ...)
-        Client[Properties.Flag] = value or false
+        Client.Config[Properties.Flag] = value
         
         __updatesettings(Client)
 
@@ -903,8 +905,10 @@ function Functions:AddSlider(Properties)
 
     local OldCallback   = Properties.Callback 
     Properties.Callback = function(value, ...)
-        Client[Properties.Flag] = value
+        Client.Config[Properties.Flag] = value
+
         __updatesettings(Client)
+
         return OldCallback(value, ...)
     end
 
