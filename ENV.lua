@@ -1,6 +1,25 @@
 --:: 90% of this was coded while sleep deprived
 
 --:: Variables
+
+local FolderName     = "Aristois"
+local SettingsName   = (FolderName .. "/%s.json"):format( tostring(game.GameId) )
+local Client         = game:GetService("HttpService"):JSONDecode( readfile(SettingsName) )
+
+function __makefolder(name)
+    if isfolder(name) then return true end 
+    makefolder(name)
+end
+
+function __updatesettings(Client)
+    writefile(SettingsName, game:GetService("HttpService"):JSONEncode({ ["Config"] = Client.Config; }))    
+end
+
+function GetSave(Name)
+    return Client["Config"][Name]
+end
+
+
 local Library = {
 	Settings = {
 		ConfigWindow = {
@@ -226,6 +245,23 @@ local ConnectionManager = {Connections = {}; Paused = {}; } do
 	end
 end
 
+local FlagGeneration = {} do
+    function FlagGeneration:GenFlag(Properties)
+        local Result = ""
+
+        for _, Constant in next, debug.getconstants(Properties.Callback) do
+            if type(Constant) == "string" then
+                Result = Result .. Constant .. "-"
+            end
+        end
+
+        for _, String in next, Properties.Title:split("") do
+            Result = Result .. String:byte() .. "-"
+        end
+
+        return Result:sub(1, #Result - 1)
+    end
+end
 
 --:: Local Functions
 local function GetMouseLocation()
@@ -759,10 +795,25 @@ function Functions:InitItemHolder(Properties)
 end
 
 function Functions:AddButton(Properties)
+    if Properties.Toggleable then
+        Properties.Flag = Properties.Flag or FlagGeneration:GenFlag(Properties.Flag)
+
+        Properties.Default = GetSave(Properties.Flag)
+
+        local OldCallback   = Properties.Callback 
+        Properties.Callback = function(value, ...)
+            Client[Properties.Flag] = value
+            __updatesettings(Client)
+            return OldCallback(value, ...)
+        end
+    end
+    
+
 	local NewButton = Library.UI.Objects.Button:Clone() do
 		NewButton.Parent 	  = self.Parent
 		NewButton.LayoutOrder = self:GetOrder() 
 	end
+
 	self.Count = self.Count + 1
 	self:Resize()
 
@@ -813,6 +864,17 @@ function Functions:AddLabel(Properties)
 end
 
 function Functions:AddToggle(Properties)
+    Properties.Flag = Properties.Flag or FlagGeneration:GenFlag(Properties.Flag)
+
+    Properties.Default = GetSave(Properties.Flag)
+
+    local OldCallback   = Properties.Callback 
+    Properties.Callback = function(value, ...)
+        Client[Properties.Flag] = value
+        __updatesettings(Client)
+        return OldCallback(value, ...)
+    end
+
 	local NewToggle = Library.UI.Objects.Toggle:Clone() do
 		NewToggle.Parent 	  = self.Parent
 		NewToggle.LayoutOrder = self:GetOrder() 
@@ -825,6 +887,17 @@ function Functions:AddToggle(Properties)
 end
 
 function Functions:AddSlider(Properties)
+    Properties.Flag = Properties.Flag or FlagGeneration:GenFlag(Properties.Flag)
+
+    Properties.Default = GetSave(Properties.Flag)
+
+    local OldCallback   = Properties.Callback 
+    Properties.Callback = function(value, ...)
+        Client[Properties.Flag] = value
+        __updatesettings(Client)
+        return OldCallback(value, ...)
+    end
+
 	local NewSlider = Library.UI.Objects.Slider:Clone() do
 		NewSlider.Parent 	  = self.Parent
 		NewSlider.LayoutOrder = self:GetOrder() 
@@ -837,7 +910,7 @@ function Functions:AddSlider(Properties)
 end
 
 function Functions:AddTextBox(Properties)
-	local NewTextBox = Library.UI.Objects.Box:Clone() do
+    local NewTextBox = Library.UI.Objects.Box:Clone() do
 		NewTextBox.Parent 	   = self.Parent
 		NewTextBox.LayoutOrder = self:GetOrder() 
 	end
