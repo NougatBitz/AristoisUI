@@ -255,12 +255,14 @@ local FlagGeneration = {} do
     function FlagGeneration:GenFlag(Properties)
         local Result = ""
 
-        for _, Constant in next, debug.getconstants(Properties.Callback) do
-            if type(Constant) == "string" then
-                Result = Result .. Constant .. "-"
+        if Properties.Callback then
+            for _, Constant in next, debug.getconstants(Properties.Callback) do
+                if type(Constant) == "string" then
+                    Result = Result .. Constant .. "-"
+                end
             end
         end
-
+        
         for _, String in next, Properties.Title:split("") do
             Result = Result .. String:byte() .. "-"
         end
