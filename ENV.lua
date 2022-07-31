@@ -262,7 +262,7 @@ local FlagGeneration = {} do
                 end
             end
         end
-        
+
         for _, String in next, Properties.Title:split("") do
             Result = Result .. String:byte() .. "-"
         end
@@ -804,7 +804,7 @@ end
 
 function Functions:AddButton(Properties)
     if Properties.Toggleable then
-        Properties.Flag = Properties.Flag or FlagGeneration:GenFlag(Properties.Flag)
+        Properties.Flag = Properties.Flag or FlagGeneration:GenFlag(Properties)
 
         Properties.Default = GetSave(Properties.Flag) or Properties.Default
 
@@ -872,7 +872,7 @@ function Functions:AddLabel(Properties)
 end
 
 function Functions:AddToggle(Properties)
-    Properties.Flag = Properties.Flag or FlagGeneration:GenFlag(Properties.Flag)
+    Properties.Flag = Properties.Flag or FlagGeneration:GenFlag(Properties)
 
     Properties.Default = GetSave(Properties.Flag) or Properties.Default
 
@@ -897,7 +897,7 @@ function Functions:AddToggle(Properties)
 end
 
 function Functions:AddSlider(Properties)
-    Properties.Flag = Properties.Flag or FlagGeneration:GenFlag(Properties.Flag)
+    Properties.Flag = Properties.Flag or FlagGeneration:GenFlag(Properties)
 
     Properties.Default = GetSave(Properties.Flag) or Properties.Default
 
